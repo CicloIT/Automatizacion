@@ -11,10 +11,10 @@
     <div class="topbar-inner">
         <div class="brand"><div class="brand-mark">✉</div> <span id="brandName">Campañas WhatsApp</span></div>
         <nav class="tabs">
-            <button class="tab active" data-view="panel">Panel</button>
-            <button class="tab" data-view="mensaje">Mensaje</button>
-            <button class="tab" data-view="contactos">Contactos</button>
-            <button class="tab" data-view="ajustes">Ajustes</button>
+            <button class="tab active" data-view="panel"><span class="tab-ico">📊</span>Inicio</button>
+            <button class="tab" data-view="mensaje"><span class="tab-ico">✍️</span>Mensaje</button>
+            <button class="tab" data-view="contactos"><span class="tab-ico">👥</span>Contactos</button>
+            <button class="tab" data-view="ajustes"><span class="tab-ico">⚙️</span>Ajustes</button>
         </nav>
         <span class="pill" id="waPill">WhatsApp…</span>
         <button class="btn ghost sm" id="logoutBtn" title="Cerrar sesión del panel">Salir</button>
@@ -22,11 +22,53 @@
 </header>
 
 <main>
-    <!-- ================= PANEL ================= -->
+    <!-- ================= INICIO ================= -->
     <section class="view active" id="view-panel">
+
+        <!-- Guía paso a paso (se oculta mientras la campaña está enviando) -->
+        <div class="card guide" id="guideCard">
+            <h2>Prepará tu campaña en 4 pasos
+                <span class="spacer"></span>
+                <details class="help"><summary title="Ayuda">?</summary><div>
+                    Completá los pasos en orden. Cada uno se marca con ✓ cuando está listo.
+                    Cuando los 4 estén listos se habilita <b>Iniciar campaña</b>.
+                </div></details>
+            </h2>
+            <ol class="steps">
+                <li class="step" id="step-wa">
+                    <div class="step-num">1</div>
+                    <div class="step-body"><b>Conectar WhatsApp</b><span class="step-desc"></span></div>
+                    <button class="btn sm" data-goto="wa">Conectar</button>
+                </li>
+                <li class="step" id="step-msg">
+                    <div class="step-num">2</div>
+                    <div class="step-body"><b>Escribir el mensaje</b><span class="step-desc"></span></div>
+                    <button class="btn sm" data-goto="mensaje">Ir a Mensaje</button>
+                </li>
+                <li class="step" id="step-contacts">
+                    <div class="step-num">3</div>
+                    <div class="step-body"><b>Cargar contactos</b><span class="step-desc"></span></div>
+                    <button class="btn sm" data-goto="contactos">Ir a Contactos</button>
+                </li>
+                <li class="step" id="step-rate">
+                    <div class="step-num">4</div>
+                    <div class="step-body"><b>Revisar ritmo y horario</b><span class="step-desc"></span></div>
+                    <button class="btn sm" data-goto="ajustes">Ver Ajustes</button>
+                </li>
+            </ol>
+        </div>
+
         <div class="grid grid-main">
             <div class="card">
-                <h2><span id="campName">Campaña</span><span class="spacer"></span><span class="pill" id="runPill">Detenida</span></h2>
+                <h2><span id="campName">Campaña</span>
+                    <span class="spacer"></span><span class="pill" id="runPill">Detenida</span>
+                    <details class="help"><summary title="Ayuda">?</summary><div>
+                        <b>Enviados</b>: recibieron el mensaje. <b>Pendientes</b>: falta enviarles.
+                        <b>Sin WhatsApp</b>: el número no tiene WhatsApp, se saltea.
+                        <b>Fallidos</b>: hubo un error; podés reintentarlos.<br><br>
+                        El progreso se guarda después de cada envío. Podés cerrar esta página: el envío sigue en el servidor.
+                    </div></details>
+                </h2>
                 <div class="stats">
                     <div class="stat"><b id="sTotal">0</b><span>Contactos</span></div>
                     <div class="stat sent"><b id="sSent">0</b><span>Enviados</span></div>
@@ -45,21 +87,28 @@
                 <div class="phase">
                     <div class="icon" id="phaseIcon">⏸</div>
                     <div><b id="phaseTitle">Detenida</b><span class="small muted" id="phaseText"></span></div>
-                    <div class="countdown" id="countdown"></div>
+                    <div class="countdown" id="countdown" title="Tiempo hasta el próximo envío"></div>
                 </div>
 
                 <div class="row">
                     <button class="btn primary big" id="startBtn">▶ Iniciar campaña</button>
                     <button class="btn big" id="pauseBtn">⏸ Pausar</button>
                     <span style="flex:1"></span>
-                    <button class="btn" id="retryBtn">↻ Reintentar fallidos</button>
-                    <a class="btn" href="/api/contacts/export">⬇ Exportar resultados</a>
+                    <button class="btn" id="retryBtn" title="Vuelve a poner en la cola a los contactos que fallaron">↻ Reintentar fallidos</button>
+                    <a class="btn" href="/api/contacts/export" title="Descarga un Excel (CSV) con el estado de cada contacto">⬇ Descargar resultados</a>
                 </div>
-                <p class="hint" style="margin-top:12px">El progreso se guarda en el servidor después de cada envío. Si se reinicia o se corta, la campaña sigue desde donde quedó. Podés cerrar esta página: el envío continúa.</p>
+                <p class="hint" id="startHint" style="margin-top:10px"></p>
             </div>
 
             <div class="card" id="waCard">
-                <h2>Conexión WhatsApp</h2>
+                <h2>Conexión WhatsApp
+                    <span class="spacer"></span>
+                    <details class="help"><summary title="Ayuda">?</summary><div>
+                        Vinculá el WhatsApp desde el que se envían los mensajes, igual que WhatsApp Web.
+                        Si el QR no funciona, usá <b>vincular con código</b>.<br><br>
+                        El teléfono tiene que conectarse a internet de vez en cuando; si pasa ~14 días apagado, WhatsApp lo desvincula.
+                    </div></details>
+                </h2>
                 <div id="waBody" class="qr-box"><span class="muted">Cargando…</span></div>
                 <form id="pairForm" class="pair-form" hidden>
                     <div class="pair-sep"><span>o vinculá con código</span></div>
@@ -72,59 +121,64 @@
             </div>
         </div>
 
-        <div class="card" style="margin-top:16px">
-            <h2>Registro en vivo<span class="spacer"></span><button class="btn sm ghost" id="clearLogView">Limpiar vista</button></h2>
+        <details class="card log-card" style="margin-top:16px" id="logCard">
+            <summary><h2>Registro de actividad<span class="spacer"></span><span class="small muted">mostrar / ocultar</span></h2></summary>
+            <div class="row" style="justify-content:flex-end;margin-bottom:8px"><button class="btn sm ghost" id="clearLogView">Limpiar vista</button></div>
             <div class="log" id="log"></div>
-        </div>
+        </details>
     </section>
 
     <!-- ================= MENSAJE ================= -->
     <section class="view" id="view-mensaje">
         <div class="grid grid-2">
             <div class="card stack">
-                <h2>Contenido de la campaña<span class="spacer"></span><span class="save-state" id="saveState"></span></h2>
+                <h2>Contenido del mensaje<span class="spacer"></span><span class="save-state" id="saveState"></span>
+                    <details class="help"><summary title="Ayuda">?</summary><div>
+                        Todo se guarda solo mientras escribís. Podés mandar sólo texto, sólo imagen, o imagen con texto debajo.
+                    </div></details>
+                </h2>
                 <label class="field">
-                    <span>Nombre de la campaña (interno)</span>
+                    <span>Nombre de la campaña <span class="muted">(sólo para vos, no se envía)</span></span>
                     <input type="text" id="nameInput" maxlength="120" placeholder="Ej: Starlink noviembre">
                 </label>
                 <div>
-                    <label class="field"><span>Imagen (opcional)</span></label>
+                    <label class="field"><span>Imagen <span class="muted">(opcional)</span></span></label>
                     <div id="imgArea"></div>
                     <input type="file" id="imgFile" accept="image/jpeg,image/png,image/webp" hidden>
                 </div>
                 <div>
-                    <label class="field"><span>Texto del mensaje</span></label>
+                    <label class="field"><span>Texto</span></label>
                     <div class="toolbar">
-                        <button class="btn sm" data-wrap="*" title="Negrita">𝗕 Negrita</button>
+                        <button class="btn sm" data-wrap="*" title="Seleccioná texto y tocá para ponerlo en negrita">𝗕 Negrita</button>
                         <button class="btn sm" data-wrap="_" title="Cursiva"><i>I</i> Cursiva</button>
                         <button class="btn sm" data-wrap="~" title="Tachado"><s>S</s></button>
-                        <button class="btn sm" data-insert="{nombre}">+ {nombre}</button>
-                        <button class="btn sm" data-insert="{Hola|Buenas|Qué tal}">+ Variación</button>
+                        <button class="btn sm" data-insert="{nombre}" title="Se reemplaza por el nombre de cada contacto">👤 Nombre del contacto</button>
+                        <button class="btn sm" data-insert="{Hola|Buenas|Qué tal}" title="Elige una opción al azar en cada envío">🎲 Saludo variable</button>
                     </div>
-                    <textarea id="msgInput" placeholder="Escribí el mensaje…"></textarea>
-                    <div class="hint">
-                        <b>{nombre}</b> se reemplaza por el primer nombre del contacto (si no tiene, se omite).
-                        <b>{Hola|Buenas|Qué tal}</b> elige una opción al azar en cada envío: ayuda a que los mensajes no sean idénticos (anti-bloqueo).
-                        <span id="charCount"></span>
+                    <textarea id="msgInput" placeholder="Ej: Hola {nombre}, te escribimos de Ciclo IT…"></textarea>
+                    <div class="tips">
+                        <div><b>👤 {nombre}</b> → se cambia por el primer nombre del contacto. Si no tiene nombre, se quita solo.</div>
+                        <div><b>🎲 {Hola|Buenas|Qué tal}</b> → en cada envío elige una opción. Que los mensajes no sean idénticos ayuda a evitar bloqueos.</div>
+                        <div class="muted" id="charCount"></div>
                     </div>
                 </div>
             </div>
 
             <div class="stack">
                 <div class="card">
-                    <h2>Vista previa<span class="spacer"></span>
-                        <input type="text" id="previewName" value="Juan Pérez" style="width:150px;padding:4px 8px;font-size:13px" title="Nombre de ejemplo">
-                        <button class="btn sm" id="reroll" title="Otra variación">↻</button>
+                    <h2>Así lo va a ver el cliente<span class="spacer"></span>
+                        <input type="text" id="previewName" value="Juan Pérez" style="width:140px;padding:4px 8px;font-size:13px" title="Nombre de ejemplo para la vista previa">
+                        <button class="btn sm" id="reroll" title="Ver otra variación del saludo">↻</button>
                     </h2>
                     <div class="phone"><div class="bubble" id="bubble"></div></div>
                 </div>
                 <div class="card">
-                    <h2>Enviar prueba</h2>
+                    <h2>Probalo antes de enviar</h2>
                     <div class="row">
-                        <input type="tel" id="testNumber" placeholder="Ej: 3584314857" style="flex:1;min-width:160px">
-                        <button class="btn primary" id="testBtn">Enviar prueba</button>
+                        <input type="tel" id="testNumber" placeholder="Tu número, ej: 3584314857" style="flex:1;min-width:160px">
+                        <button class="btn primary" id="testBtn">Enviarme una prueba</button>
                     </div>
-                    <p class="hint">Se envía el mensaje actual (con imagen) a ese número, usando "Prueba" como nombre. No cuenta en la campaña.</p>
+                    <p class="hint">Te llega el mensaje tal cual (con la imagen), usando "Prueba" como nombre. No cuenta para la campaña.</p>
                 </div>
             </div>
         </div>
@@ -134,29 +188,37 @@
     <section class="view" id="view-contactos">
         <div class="grid grid-2" style="margin-bottom:16px">
             <div class="card">
-                <h2>Cargar contactos</h2>
+                <h2>Cargar contactos
+                    <span class="spacer"></span>
+                    <details class="help"><summary title="Ayuda">?</summary><div>
+                        Sirve un Excel (.xlsx), un .csv o los contactos exportados del teléfono (.vcf).
+                        El archivo necesita una columna con el teléfono; el nombre es opcional.
+                        Los números se corrigen solos (0358 15…, +54 9…, etc.) y los repetidos se descartan.
+                    </div></details>
+                </h2>
                 <div class="dropzone" id="sheetDrop">
                     <div style="font-size:28px">📄</div>
-                    <b>Arrastrá un Excel acá o hacé clic</b>
-                    <div class="small">.xlsx, .csv o .vcf — se detectan solas las columnas de teléfono y nombre</div>
+                    <b>Arrastrá el archivo acá o hacé clic para elegirlo</b>
+                    <div class="small">Excel (.xlsx), .csv o contactos (.vcf)</div>
                 </div>
                 <input type="file" id="sheetFile" accept=".xlsx,.xlsm,.csv,.txt,.vcf" hidden>
                 <p class="hint" id="sourceInfo"></p>
             </div>
             <div class="card">
-                <h2>Agregar a mano</h2>
+                <h2>Agregar uno a mano</h2>
                 <div class="stack">
                     <div class="row">
                         <input type="text" id="addName" placeholder="Nombre (opcional)" style="flex:1;min-width:140px">
                         <input type="tel" id="addNumber" placeholder="Teléfono" style="flex:1;min-width:140px">
                         <button class="btn" id="addBtn">Agregar</button>
                     </div>
-                    <div class="row">
-                        <button class="btn" id="resetBtn">Reiniciar progreso</button>
-                        <button class="btn danger" id="clearBtn">Borrar lista</button>
-                    </div>
-                    <p class="hint">"Reiniciar progreso" vuelve todos a pendientes (para mandar otra campaña a la misma lista).</p>
                 </div>
+                <h2 style="margin-top:20px">Herramientas de la lista</h2>
+                <div class="row">
+                    <button class="btn" id="resetBtn" title="Todos vuelven a pendiente">↺ Enviar de nuevo a todos</button>
+                    <button class="btn danger" id="clearBtn">🗑 Borrar lista</button>
+                </div>
+                <p class="hint"><b>Enviar de nuevo a todos</b>: usalo para mandar una campaña nueva a la misma lista.</p>
             </div>
         </div>
 
@@ -169,7 +231,7 @@
                     <button class="chip" data-status="no_wa">Sin WhatsApp</button>
                     <button class="chip" data-status="failed">Fallidos</button>
                 </div>
-                <input type="search" id="search" placeholder="Buscar nombre o número" style="max-width:240px">
+                <input type="search" id="search" placeholder="🔍 Buscar nombre o número" style="max-width:240px">
             </div>
             <div class="table-wrap">
                 <table>
@@ -190,32 +252,69 @@
     <!-- ================= AJUSTES ================= -->
     <section class="view" id="view-ajustes">
         <form class="card stack" id="settingsForm">
-            <h2>Ritmo de envío (anti-bloqueo)</h2>
-            <div class="fields">
+            <h2>¿Qué tan rápido enviar?
+                <span class="spacer"></span>
+                <details class="help"><summary title="Ayuda">?</summary><div>
+                    WhatsApp bloquea números que mandan muchos mensajes seguidos a gente que no los tiene agendados.
+                    Ir más despacio reduce mucho ese riesgo. Si el número es nuevo o ya tuvo reportes, usá <b>Cuidadoso</b>.
+                </div></details>
+            </h2>
+            <div class="profiles" id="profiles">
+                <label class="profile"><input type="radio" name="profile" value="careful">
+                    <span class="p-title">🐢 Cuidadoso</span>
+                    <span class="p-desc">Máxima seguridad. Ideal para números nuevos.</span>
+                    <span class="p-meta" data-meta="careful"></span>
+                </label>
+                <label class="profile"><input type="radio" name="profile" value="normal">
+                    <span class="p-title">🚶 Normal <em class="badge">Recomendado</em></span>
+                    <span class="p-desc">Buen equilibrio entre velocidad y seguridad.</span>
+                    <span class="p-meta" data-meta="normal"></span>
+                </label>
+                <label class="profile"><input type="radio" name="profile" value="fast">
+                    <span class="p-title">🏃 Rápido</span>
+                    <span class="p-desc">Más envíos por día. Mayor riesgo de bloqueo.</span>
+                    <span class="p-meta" data-meta="fast"></span>
+                </label>
+                <label class="profile"><input type="radio" name="profile" value="custom">
+                    <span class="p-title">🛠 Personalizado</span>
+                    <span class="p-desc">Elegí cada valor a mano.</span>
+                    <span class="p-meta">&nbsp;</span>
+                </label>
+            </div>
+            <div class="fields" id="customFields" hidden>
                 <label class="field"><span>Espera mínima entre mensajes (seg)</span><input type="number" name="delayMinSec" min="5"></label>
                 <label class="field"><span>Espera máxima entre mensajes (seg)</span><input type="number" name="delayMaxSec" min="5"></label>
-                <label class="field"><span>Pausa larga cada (mensajes)</span><input type="number" name="batchSize" min="1"></label>
-                <label class="field"><span>Duración de pausa larga (min)</span><input type="number" name="batchPauseMin" min="0"></label>
+                <label class="field"><span>Descanso largo cada (mensajes)</span><input type="number" name="batchSize" min="1"></label>
+                <label class="field"><span>Duración del descanso (min)</span><input type="number" name="batchPauseMin" min="0"></label>
                 <label class="field"><span>Máximo de envíos por día</span><input type="number" name="dailyLimit" min="1"></label>
             </div>
-            <p class="hint" id="rateHint"></p>
+            <div class="warn-box" id="fastWarn" hidden>⚠️ Con este ritmo aumenta el riesgo de que WhatsApp bloquee el número. Usalo sólo con números con mucho uso y sin reportes.</div>
 
-            <h2 style="margin-top:22px">Horario de envío</h2>
-            <div class="fields">
-                <label class="field"><span>Desde (hora)</span><input type="number" name="hourStart" min="0" max="23"></label>
-                <label class="field"><span>Hasta (hora)</span><input type="number" name="hourEnd" min="0" max="24"></label>
+            <h2 style="margin-top:22px">¿Cuándo enviar?</h2>
+            <div class="row hours">
+                <span>De</span>
+                <select name="hourStart" style="width:auto"></select>
+                <span>a</span>
+                <select name="hourEnd" style="width:auto"></select>
+                <span class="muted small">hs</span>
             </div>
             <div class="days" id="days"></div>
-            <p class="hint">Fuera de este horario la campaña espera sola y retoma cuando corresponde. Zona horaria: <span id="tzText"></span>.</p>
+            <p class="hint">Fuera de este horario la campaña espera sola y sigue cuando corresponde. Zona horaria: <span id="tzText"></span>.</p>
 
-            <h2 style="margin-top:22px">Contactos</h2>
-            <div class="fields">
-                <label class="field"><span>Código de país por defecto</span><input type="text" name="countryCode" maxlength="4"></label>
-            </div>
-            <label class="check"><input type="checkbox" name="skipHistory">
-                <span>No volver a enviar a números que ya recibieron campañas anteriores<br>
-                <span class="hint">Historial actual: <b id="historySize">0</b> números. <a href="#" id="clearHistory">Borrar historial</a></span></span>
-            </label>
+            <div class="estimate" id="estimate"></div>
+
+            <details class="advanced">
+                <summary>Opciones avanzadas</summary>
+                <div class="stack" style="margin-top:12px">
+                    <div class="fields">
+                        <label class="field"><span>Código de país por defecto</span><input type="text" name="countryCode" maxlength="4"></label>
+                    </div>
+                    <label class="check"><input type="checkbox" name="skipHistory">
+                        <span>No volver a enviar a números que ya recibieron campañas anteriores<br>
+                        <span class="hint">Historial actual: <b id="historySize">0</b> números. <a href="#" id="clearHistory">Borrar historial</a></span></span>
+                    </label>
+                </div>
+            </details>
 
             <div class="row" style="margin-top:18px">
                 <button class="btn primary">Guardar ajustes</button>
@@ -226,10 +325,10 @@
         <div class="card" style="margin-top:16px">
             <h2>WhatsApp</h2>
             <div class="row">
-                <button class="btn" id="waRestart">Reiniciar conexión</button>
+                <button class="btn" id="waRestart">Reconectar</button>
                 <button class="btn danger" id="waLogout">Desvincular teléfono</button>
             </div>
-            <p class="hint">Desvincular cierra la sesión y muestra un QR nuevo para conectar otro número.</p>
+            <p class="hint"><b>Reconectar</b> sirve si se trabó la conexión. <b>Desvincular</b> cierra la sesión para conectar otro número.</p>
         </div>
     </section>
 </main>
@@ -239,22 +338,44 @@
     <div class="modal-body stack">
         <div>
             <h3>Importar <span id="impFile"></span></h3>
-            <div class="small muted"><span id="impRows"></span> filas encontradas. Revisá que las columnas sean correctas.</div>
+            <div class="small muted"><span id="impRows"></span> filas encontradas. Revisá que las columnas marcadas sean las correctas.</div>
         </div>
         <div class="fields">
-            <label class="field"><span>Columna del teléfono</span><select id="impPhone"></select></label>
-            <label class="field"><span>Columna del nombre</span><select id="impName"></select></label>
+            <label class="field"><span><span class="dot dot-green"></span> Columna del teléfono</span><select id="impPhone"></select></label>
+            <label class="field"><span><span class="dot dot-blue"></span> Columna del nombre</span><select id="impName"></select></label>
         </div>
         <div class="table-wrap" style="max-height:220px;overflow:auto"><table id="impSample"></table></div>
         <div class="result-line" id="impResult"></div>
         <div class="row">
             <label class="check"><input type="radio" name="impMode" value="replace" checked> <span>Reemplazar la lista actual</span></label>
-            <label class="check"><input type="radio" name="impMode" value="append"> <span>Agregar a la lista actual</span></label>
+            <label class="check"><input type="radio" name="impMode" value="append"> <span>Sumar a la lista actual</span></label>
         </div>
     </div>
     <div class="modal-foot">
         <button class="btn" id="impCancel">Cancelar</button>
         <button class="btn primary" id="impConfirm">Importar contactos</button>
+    </div>
+</dialog>
+
+<!-- Modal de confirmación al iniciar -->
+<dialog id="startDialog">
+    <div class="modal-body stack">
+        <h3 id="sdTitle">¿Empezamos?</h3>
+        <div class="sd-grid">
+            <div class="sd-summary">
+                <div class="sd-row"><span>Se envía a</span><b id="sdCount"></b></div>
+                <div class="sd-row"><span>Desde</span><b id="sdFrom"></b></div>
+                <div class="sd-row"><span>Ritmo</span><b id="sdRate"></b></div>
+                <div class="sd-row"><span>Horario</span><b id="sdHours"></b></div>
+                <div class="sd-row"><span>Termina aprox.</span><b id="sdEnd"></b></div>
+                <p class="hint">Podés pausar en cualquier momento. Si se corta la luz o internet, sigue sola donde quedó.</p>
+            </div>
+            <div class="phone small-phone"><div class="bubble" id="sdBubble"></div></div>
+        </div>
+    </div>
+    <div class="modal-foot">
+        <button class="btn" id="sdCancel">Cancelar</button>
+        <button class="btn primary big" id="sdConfirm">▶ Confirmar y empezar</button>
     </div>
 </dialog>
 

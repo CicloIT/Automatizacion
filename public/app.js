@@ -116,15 +116,85 @@ function renderStatus(s) {
     rp.textContent = s.running ? 'En curso' : (s.phase === 'done' ? 'Completada' : 'Detenida');
     rp.className = 'pill ' + (s.running ? 'ok' : '');
 
-    $('#startBtn').disabled = s.running || c.pending === 0;
     $('#pauseBtn').disabled = !s.running;
     $('#retryBtn').disabled = c.failed === 0;
     $('#historySize').textContent = s.historySize;
     $('#tzText').textContent = s.tz;
     $('#sourceInfo').textContent = s.source ? `Última carga: ${s.source.name} (${fmtDate(s.source.at)}) — ${c.total} contactos en la lista.` : 'Todavía no cargaste contactos.';
     renderWa(s.wa);
+    renderGuide();
+    if ($('#settingsForm').hourStart.options.length) updateEstimate();
     tickCountdown();
 }
+
+// ---------- guía paso a paso ----------
+
+function readiness() {
+    const s = status, c = s.counts;
+    return {
+        wa: s.wa.status === 'ready',
+        msg: !!(s.hasMessage || s.hasImage),
+        contacts: c.pending > 0,
+    };
+}
+
+function setStep(id, done, desc) {
+    const el = $(`#step-${id}`);
+    el.classList.toggle('done', done);
+    el.querySelector('.step-desc').textContent = desc;
+}
+
+function renderGuide() {
+    if (!status || !campaign) return;
+    const s = status, c = s.counts, r = readiness();
+    const est = estimate(campaign.settings, c.pending);
+
+    setStep('wa', r.wa, r.wa
+        ? `Conectado como ${s.wa.me?.name || ''} (+${s.wa.me?.number || ''})`
+        : 'Vinculá el teléfono con el QR o con un código, en "Conexión WhatsApp" acá abajo.');
+    setStep('msg', r.msg, r.msg
+        ? (s.hasImage && s.hasMessage ? 'Imagen y texto listos.' : s.hasImage ? 'Sólo imagen (sin texto).' : 'Texto listo (sin imagen).')
+        : 'Escribí el texto y, si querés, subí una imagen.');
+    setStep('contacts', r.contacts, r.contacts
+        ? `${c.pending} contactos esperando el mensaje.`
+        : c.total > 0
+            ? 'Todos los de la lista ya fueron procesados. Cargá otra lista o usá "Enviar de nuevo a todos".'
+            : 'Subí tu Excel con los números.');
+    setStep('rate', true, `${PROFILE_NAMES[detectProfile(campaign.settings)]} · ${hoursText(campaign.settings)}` +
+        (c.pending ? ` · termina aprox. ${fmtDay(est.endDate)}` : ''));
+
+    // resaltar el primer paso pendiente
+    const order = ['wa', 'msg', 'contacts'];
+    const current = order.find(k => !r[k]);
+    $$('.step').forEach(el => el.classList.toggle('current', el.id === `step-${current}`));
+
+    const allReady = r.wa && r.msg && r.contacts;
+    $('#guideCard').hidden = s.running;
+    $('#startBtn').disabled = s.running || !allReady;
+    $('#startBtn').textContent = c.sent > 0 && c.pending > 0 ? '▶ Seguir enviando' : '▶ Iniciar campaña';
+
+    const missing = [];
+    if (!r.wa) missing.push('conectar WhatsApp');
+    if (!r.msg) missing.push('escribir el mensaje');
+    if (!r.contacts) missing.push('cargar contactos');
+    $('#startHint').innerHTML = s.running
+        ? 'Podés cerrar esta página: el envío sigue en el servidor y se guarda después de cada mensaje.'
+        : missing.length
+            ? `Para iniciar falta: <b>${missing.join(', ')}</b>.`
+            : '✓ Todo listo. Tocá <b>Iniciar campaña</b> para ver el resumen y confirmar.';
+}
+
+$$('[data-goto]').forEach(b => b.addEventListener('click', () => {
+    const to = b.dataset.goto;
+    if (to === 'wa') {
+        $('#waCard').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        $('#waCard').classList.add('flash');
+        setTimeout(() => $('#waCard').classList.remove('flash'), 1500);
+    } else {
+        showView(to);
+        window.scrollTo({ top: 0 });
+    }
+}));
 
 function renderWa(w) {
     const pill = $('#waPill');
@@ -218,7 +288,34 @@ function connectEvents() {
 
 // ---------- panel: controles ----------
 
-$('#startBtn').onclick = () => action(() => api('/api/start', { method: 'POST' }), 'Campaña iniciada');
+$('#startBtn').onclick = openStartDialog;
+
+async function openStartDialog() {
+    const c = status.counts, s = campaign.settings;
+    const est = estimate(s, c.pending);
+    let sampleName = 'Juan Pérez';
+    try {
+        const first = await api('/api/contacts?status=pending&size=10');
+        if (first.items[0]?.name) sampleName = first.items[0].name;
+    } catch { /* usa nombre de ejemplo */ }
+
+    $('#sdTitle').textContent = c.sent > 0 ? '¿Seguimos con la campaña?' : '¿Empezamos la campaña?';
+    $('#sdCount').textContent = `${c.pending} contactos`;
+    $('#sdFrom').textContent = `+${status.wa.me?.number || ''}${status.wa.me?.name ? ` (${status.wa.me.name})` : ''}`;
+    $('#sdRate').textContent = `${PROFILE_NAMES[detectProfile(s)]} · ≈ ${est.perDay} por día`;
+    $('#sdHours').textContent = hoursText(s);
+    $('#sdEnd').textContent = `${fmtDay(est.endDate)} (${est.days} ${est.days === 1 ? 'día' : 'días'} de envío)`;
+
+    const text = buildMessage($('#msgInput').value, sampleName, Math.floor(Math.random() * 10));
+    const img = campaign.image ? `<img src="/api/campaign/image?v=${campaign.image.v}" alt="">` : '';
+    $('#sdBubble').innerHTML = img + (text ? `<div class="txt">${waFormat(text)}</div>` : '') + '<div class="meta">✓✓</div>';
+    $('#startDialog').showModal();
+}
+$('#sdCancel').onclick = () => $('#startDialog').close();
+$('#sdConfirm').onclick = async () => {
+    const r = await action(() => api('/api/start', { method: 'POST' }), 'Campaña en marcha 🚀');
+    if (r) $('#startDialog').close();
+};
 $('#pauseBtn').onclick = () => action(() => api('/api/pause', { method: 'POST' }), 'Campaña pausada');
 $('#retryBtn').onclick = () => action(() => api('/api/contacts/retry-failed', { method: 'POST' }), r => `${r.count} contactos vuelven a pendientes`);
 $('#logoutBtn').onclick = async () => { await api('/api/logout', { method: 'POST' }); location.href = '/login.html'; };
@@ -338,7 +435,7 @@ async function loadContacts() {
                 ${c.status !== 'pending' ? `<button class="btn sm" data-requeue="${c.number}" title="Volver a pendiente">↻</button>` : ''}
                 <button class="btn sm danger" data-del="${c.number}" title="Quitar de la lista">✕</button>
             </td></tr>`;
-    }).join('') : `<tr><td colspan="6" class="muted" style="text-align:center;padding:30px">Sin contactos${cFilter || cQuery ? ' con ese filtro' : '. Cargá un Excel arriba.'}</td></tr>`;
+    }).join('') : `<tr><td colspan="6" class="muted empty">${cFilter || cQuery ? 'No hay contactos con ese filtro.' : '👆 Todavía no hay contactos. Subí tu Excel arriba.'}</td></tr>`;
     $('#pageInfo').textContent = `${data.total} contactos · página ${data.page} de ${data.pages}`;
     $('#prevPage').disabled = data.page <= 1;
     $('#nextPage').disabled = data.page >= data.pages;
@@ -437,34 +534,116 @@ $('#sheetFile').onchange = e => { if (e.target.files[0]) uploadSheet(e.target.fi
 // ---------- ajustes ----------
 
 const DAY_NAMES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-function renderSettings(s) {
-    const f = $('#settingsForm');
-    for (const k of ['delayMinSec', 'delayMaxSec', 'batchSize', 'batchPauseMin', 'dailyLimit', 'hourStart', 'hourEnd', 'countryCode']) f[k].value = s[k];
-    f.skipHistory.checked = s.skipHistory;
-    $('#days').innerHTML = [1, 2, 3, 4, 5, 6, 0].map(d =>
-        `<label><input type="checkbox" value="${d}" ${s.days.includes(d) ? 'checked' : ''}>${DAY_NAMES[d]}</label>`).join('');
-    updateRateHint();
+const RATE_KEYS = ['delayMinSec', 'delayMaxSec', 'batchSize', 'batchPauseMin', 'dailyLimit'];
+const PROFILES = {
+    careful: { delayMinSec: 60, delayMaxSec: 180, batchSize: 8, batchPauseMin: 30, dailyLimit: 30 },
+    normal: { delayMinSec: 45, delayMaxSec: 120, batchSize: 10, batchPauseMin: 20, dailyLimit: 50 },
+    fast: { delayMinSec: 30, delayMaxSec: 75, batchSize: 15, batchPauseMin: 15, dailyLimit: 100 },
+};
+const PROFILE_NAMES = { careful: '🐢 Cuidadoso', normal: '🚶 Normal', fast: '🏃 Rápido', custom: '🛠 Personalizado' };
+
+function detectProfile(s) {
+    return Object.keys(PROFILES).find(k => RATE_KEYS.every(x => Number(s[x]) === PROFILES[k][x])) || 'custom';
 }
-function updateRateHint() {
-    const f = $('#settingsForm');
-    const avg = (Number(f.delayMinSec.value) + Number(f.delayMaxSec.value)) / 2;
-    const bs = Number(f.batchSize.value) || 1;
-    const perHour = 3600 / (avg + (Number(f.batchPauseMin.value) * 60) / bs);
-    $('#rateHint').textContent = `≈ ${Math.round(perHour)} mensajes por hora. Recomendado para números nuevos: no más de 50 por día los primeros días.`;
+
+function hoursText(s) {
+    const names = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+    const d = s.days || [];
+    const days = d.length === 7 ? 'todos los días'
+        : [1, 2, 3, 4, 5].every(x => d.includes(x)) && d.length === 5 ? 'lun a vie'
+        : [1, 2, 3, 4, 5, 6].every(x => d.includes(x)) && d.length === 6 ? 'lun a sáb'
+        : [1, 2, 3, 4, 5, 6, 0].filter(x => d.includes(x)).map(x => names[x]).join(', ') || 'ningún día';
+    const h = s.hourStart === s.hourEnd ? 'todo el día' : `${s.hourStart} a ${s.hourEnd} hs`;
+    return `${days}, ${h}`;
 }
-$('#settingsForm').addEventListener('input', updateRateHint);
-$('#settingsForm').addEventListener('submit', e => {
-    e.preventDefault();
-    const f = e.target;
+
+const fmtDay = d => d ? d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }) : '—';
+
+/** Estima envíos por día y fecha de fin según ritmo, horario y días habilitados. */
+function estimate(s, pending) {
+    const avg = (Number(s.delayMinSec) + Number(s.delayMaxSec)) / 2 + 5; // + tiempo de "escribiendo…" y envío
+    const cycle = avg + (Number(s.batchPauseMin) * 60) / Math.max(1, Number(s.batchSize));
+    const perHour = 3600 / cycle;
+    const hs = Number(s.hourStart), he = Number(s.hourEnd);
+    const windowHours = hs === he ? 24 : he > hs ? he - hs : 24 - hs + he;
+    const perDay = Math.max(1, Math.min(Number(s.dailyLimit), Math.floor(perHour * windowHours)));
+    const days = Math.max(1, Math.ceil((pending || 0) / perDay));
+    let endDate = null;
+    const allowed = s.days || [];
+    if (allowed.length) {
+        const d = new Date();
+        let count = 0;
+        for (let i = 0; i < 800; i++) {
+            if (allowed.includes(d.getDay())) count++;
+            if (count >= days) { endDate = new Date(d); break; }
+            d.setDate(d.getDate() + 1);
+        }
+    }
+    return { perHour: Math.round(perHour), perDay, days, endDate };
+}
+
+function readSettingsForm() {
+    const f = $('#settingsForm');
     const body = {};
-    for (const k of ['delayMinSec', 'delayMaxSec', 'batchSize', 'batchPauseMin', 'dailyLimit', 'hourStart', 'hourEnd']) body[k] = Number(f[k].value);
+    for (const k of [...RATE_KEYS, 'hourStart', 'hourEnd']) body[k] = Number(f[k].value);
     body.countryCode = f.countryCode.value;
     body.skipHistory = f.skipHistory.checked;
     body.days = $$('#days input:checked').map(i => Number(i.value));
+    return body;
+}
+
+function renderSettings(s) {
+    const f = $('#settingsForm');
+    const hourOpts = (from, to) => Array.from({ length: to - from + 1 }, (_, i) => from + i)
+        .map(h => `<option value="${h}">${String(h).padStart(2, '0')}:00</option>`).join('');
+    f.hourStart.innerHTML = hourOpts(0, 23);
+    f.hourEnd.innerHTML = hourOpts(1, 24);
+    for (const k of [...RATE_KEYS, 'hourStart', 'hourEnd', 'countryCode']) f[k].value = s[k];
+    f.skipHistory.checked = s.skipHistory;
+    $('#days').innerHTML = [1, 2, 3, 4, 5, 6, 0].map(d =>
+        `<label><input type="checkbox" value="${d}" ${s.days.includes(d) ? 'checked' : ''}>${DAY_NAMES[d]}</label>`).join('');
+    const p = detectProfile(s);
+    f.profile.value = p;
+    $('#customFields').hidden = p !== 'custom';
+    updateEstimate();
+}
+
+function updateEstimate() {
+    const s = readSettingsForm();
+    const p = $('#settingsForm').profile.value;
+    const pending = status?.counts?.pending || 0;
+    for (const k of Object.keys(PROFILES)) {
+        const e = estimate({ ...s, ...PROFILES[k] }, pending);
+        $(`[data-meta="${k}"]`).textContent = `≈ ${e.perDay} mensajes por día`;
+    }
+    $('#fastWarn').hidden = p !== 'fast';
+    const e = estimate(s, pending);
+    $('#estimate').innerHTML = pending
+        ? `📅 Con estos ajustes: <b>≈ ${e.perDay} mensajes por día</b>. Los <b>${pending}</b> pendientes se terminan en
+           <b>${e.days} ${e.days === 1 ? 'día' : 'días'} de envío</b>, aprox. el <b>${fmtDay(e.endDate)}</b>.`
+        : `📅 Con estos ajustes: <b>≈ ${e.perDay} mensajes por día</b> (unos ${e.perHour} por hora).`;
+    if (!s.days.length) $('#estimate').innerHTML = '⚠️ Elegí al menos un día de envío.';
+}
+
+$('#profiles').addEventListener('change', e => {
+    if (e.target.name !== 'profile') return;
+    const p = e.target.value;
+    const f = $('#settingsForm');
+    if (PROFILES[p]) for (const k of RATE_KEYS) f[k].value = PROFILES[p][k];
+    $('#customFields').hidden = p !== 'custom';
+    updateEstimate();
+});
+$('#settingsForm').addEventListener('input', updateEstimate);
+$('#settingsForm').addEventListener('change', updateEstimate);
+$('#settingsForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const body = readSettingsForm();
+    if (!body.days.length) return toast('Elegí al menos un día de envío', true);
     action(async () => {
         const s = await api('/api/settings', { method: 'PUT', body });
         campaign.settings = s;
         renderSettings(s);
+        renderGuide();
         $('#settingsState').textContent = '✓ Guardado';
         setTimeout(() => { $('#settingsState').textContent = ''; }, 2500);
     }, 'Ajustes guardados');
