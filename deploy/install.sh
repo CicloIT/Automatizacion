@@ -17,7 +17,7 @@
 # y el router tiene que reenviar los puertos 80 y 443 a este servidor.
 #
 # Para actualizar: copiar la carpeta nueva y volver a correr el script.
-# No pisa data/, .env ni la sesión de WhatsApp (.wwebjs_auth/).
+# No pisa data/ (incluye la sesión de WhatsApp en data/wa-session) ni .env.
 #
 # Variables opcionales: APP_DIR (/opt/whatsapp-panel), APP_USER (whatsapp), PORT (3000), NODE_MAJOR (24)
 set -euo pipefail
@@ -51,15 +51,11 @@ NODE_BIN="$(command -v node)"
 NPM_BIN="$(command -v npm)"
 echo "    node $(node -v) / npm $(npm -v)"
 
-# ---------------------------------------------------------------- Chromium deps
-step "Librerías de sistema para Chromium"
+# ---------------------------------------------------------------- utilidades
+# (WhatsApp va con Baileys: no hace falta Chrome ni sus librerías)
+step "Utilidades del sistema"
 apt-get update -y
-ASOUND=libasound2
-apt-cache show libasound2t64 >/dev/null 2>&1 && ASOUND=libasound2t64
-apt-get install -y --no-install-recommends \
-    ca-certificates curl rsync fonts-liberation fonts-noto-color-emoji "$ASOUND" \
-    libatk-bridge2.0-0 libatk1.0-0 libcups2 libdrm2 libgbm1 libgtk-3-0 libnspr4 libnss3 \
-    libx11-xcb1 libxcomposite1 libxdamage1 libxfixes3 libxkbcommon0 libxrandr2 libxshmfence1 xdg-utils
+apt-get install -y --no-install-recommends ca-certificates curl rsync
 
 # ---------------------------------------------------------------- Usuario y archivos
 step "Usuario de servicio: $APP_USER"
@@ -76,15 +72,17 @@ if [ "$SRC_DIR" != "$APP_DIR" ]; then
         --exclude graphify-out --exclude .claude --exclude .kombai \
         --exclude data --exclude .env --exclude .wwebjs_auth --exclude .wwebjs_cache \
         "$SRC_DIR/" "$APP_DIR/"
-    # Sesión de WhatsApp y datos: sólo si en el destino todavía no existen
-    if [ -d "$SRC_DIR/.wwebjs_auth" ] && [ ! -d "$APP_DIR/.wwebjs_auth" ]; then
-        cp -a "$SRC_DIR/.wwebjs_auth" "$APP_DIR/"; echo "    Sesión de WhatsApp copiada"
-    fi
+    # Datos: sólo si en el destino todavía no existen
     if [ -d "$SRC_DIR/data" ] && [ ! -f "$APP_DIR/data/campaign.json" ]; then
         mkdir -p "$APP_DIR/data" && cp -a "$SRC_DIR/data/." "$APP_DIR/data/"; echo "    Datos copiados"
     fi
 fi
 mkdir -p "$APP_DIR/data"
+# Restos de la versión con Chrome (whatsapp-web.js): ya no se usan
+if [ -d "$APP_DIR/.cache/puppeteer" ] || [ -d "$APP_DIR/.wwebjs_auth" ]; then
+    rm -rf "$APP_DIR/.cache/puppeteer" "$APP_DIR/.wwebjs_auth" "$APP_DIR/.wwebjs_cache"
+    echo "    Limpiados archivos de Chrome/whatsapp-web.js (ya no se usan)"
+fi
 
 # Contraseña del panel: se pregunta en la primera instalación (o con CHANGE_PASSWORD=1).
 # Enter vacío = se genera una aleatoria.
@@ -135,10 +133,9 @@ chmod 600 "$APP_DIR/.env"
 chmod 700 "$APP_DIR/data"
 
 # ---------------------------------------------------------------- npm
-step "Dependencias npm (descarga Chromium la primera vez, tarda unos minutos)"
+step "Dependencias npm"
 systemctl stop "$SERVICE" 2>/dev/null || true
-sudo -u "$APP_USER" -H env PUPPETEER_CACHE_DIR="$APP_DIR/.cache/puppeteer" \
-    bash -c "cd '$APP_DIR' && '$NPM_BIN' ci --omit=dev --no-audit --no-fund"
+sudo -u "$APP_USER" -H bash -c "cd '$APP_DIR' && '$NPM_BIN' ci --omit=dev --no-audit --no-fund"
 
 # ---------------------------------------------------------------- systemd
 step "Servicio systemd: $SERVICE"
@@ -153,7 +150,6 @@ Type=simple
 User=$APP_USER
 WorkingDirectory=$APP_DIR
 Environment=NODE_ENV=production
-Environment=PUPPETEER_CACHE_DIR=$APP_DIR/.cache/puppeteer
 ExecStart=$NODE_BIN server.js
 Restart=always
 RestartSec=10

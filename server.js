@@ -19,7 +19,7 @@ const express = require('express');
 const multer = require('multer');
 const { UPLOADS_DIR } = require('./lib/store');
 const auth = require('./lib/auth');
-const { readRows, analyze, buildContacts } = require('./lib/contacts');
+const { readRows, analyze, buildContacts, normalizeNumber } = require('./lib/contacts');
 const { WhatsApp } = require('./lib/whatsapp');
 const { Campaign, buildMessage } = require('./lib/campaign');
 
@@ -208,7 +208,12 @@ app.post('/api/start', wrap(() => campaign.start()));
 app.post('/api/pause', wrap(() => campaign.pause()));
 app.post('/api/test', wrap(async req => ({ number: await campaign.sendTest(req.body?.number) })));
 app.post('/api/wa/logout', wrap(async () => { campaign.pause('Campaña pausada: se desvinculó WhatsApp.'); await wa.logout(); }));
-app.post('/api/wa/restart', wrap(async () => { await wa.shutdown(); wa.start(); }));
+app.post('/api/wa/restart', wrap(async () => { await wa.restart(); }));
+app.post('/api/wa/pair', wrap(async req => {
+    const number = normalizeNumber(req.body?.number, campaign.state.settings.countryCode);
+    if (!number) throw new Error('Número inválido');
+    return { code: await wa.requestPairing(number), number };
+}));
 
 app.use((err, req, res, next) => {
     console.error(err);

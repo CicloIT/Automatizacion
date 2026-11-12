@@ -5,7 +5,9 @@ Panel web para enviar campañas masivas (imagen + texto) por WhatsApp, con carga
 ## Qué hace
 
 - **Panel**: estado en vivo (enviados, pendientes, sin WhatsApp, fallidos), cuenta regresiva al próximo envío, registro en vivo, iniciar / pausar, exportar resultados a CSV.
-- **Conexión WhatsApp**: muestra el QR en la página para vincular el teléfono. La sesión queda guardada en `.wwebjs_auth/`.
+- **Conexión WhatsApp** (librería [Baileys](https://github.com/WhiskeySockets/Baileys), sin navegador): vincular con el **QR** o con un
+  **código de 8 caracteres** (en el teléfono: Dispositivos vinculados → Vincular un dispositivo → *Vincular con el número de teléfono*).
+  La sesión queda guardada en `data/wa-session/`. Antes de cada envío muestra "escribiendo…" unos segundos.
 - **Mensaje**: texto con `{nombre}`, variaciones al azar `{Hola|Buenas|Qué tal}`, negrita/cursiva de WhatsApp, imagen (JPG/PNG/WEBP), vista previa tipo WhatsApp y envío de prueba. Se guarda solo al escribir.
 - **Contactos**: subir `.xlsx`, `.csv` o `.vcf`. Detecta solo las columnas de teléfono y nombre (se pueden corregir antes de importar), normaliza números argentinos (`0358 15 …`, `358…`, `+54 9 …` → `549…`), quita repetidos. Tabla con filtros, búsqueda, quitar o reencolar contactos.
 - **Ajustes**: espera entre mensajes, pausa larga cada N mensajes, límite diario, horario y días de envío, no repetir a números de campañas anteriores.
@@ -14,28 +16,24 @@ Panel web para enviar campañas masivas (imagen + texto) por WhatsApp, con carga
 
 ## Instalación en el servidor (Ubuntu 22.04 / 24.04)
 
-El script `deploy/install.sh` hace todo: instala **Node 24 LTS** (NodeSource, trae npm 11), las librerías que necesita Chromium,
+El script `deploy/install.sh` hace todo: instala **Node 24 LTS** (NodeSource, trae npm 11),
 crea el usuario `whatsapp`, copia la app a `/opt/whatsapp-panel`, genera la contraseña, instala dependencias, crea el servicio
 systemd `whatsapp-panel` (arranca solo con la máquina y se reinicia si se cae) y lo publica en internet con HTTPS (Tailscale Funnel, subdominio propio o Cloudflare).
 
 ### 1. Llevar el proyecto al servidor
 
-Desde esta PC, copiar la carpeta **sin `node_modules/`**. Ejemplo con scp (PowerShell, desde la carpeta del proyecto):
-
-```powershell
-scp -r server.js lib public deploy package.json package-lock.json .env.example .gitattributes README.md progress.json usuario@IP-DEL-SERVER:~/whatsapp-panel/
+```bash
+sudo apt install -y git
+git clone https://github.com/CicloIT/Automatizacion.git ~/Desktop/Automatizacion
+git config --global credential.helper store   # repo privado: guarda el token de GitHub
 ```
 
-Para no volver a escanear el QR, copiar también `.wwebjs_auth` (mueve la sesión ya vinculada: después **no** usar más el panel ni el script viejo en esta PC):
-
-```powershell
-scp -r .wwebjs_auth usuario@IP-DEL-SERVER:~/whatsapp-panel/
-```
+Opcional, para no reenviar a quienes ya recibieron campañas: copiar `progress.json` (no está en el repo) a esa carpeta antes de instalar.
 
 ### 2. Instalar y publicar con Tailscale Funnel (recomendado: sin puertos ni dominio)
 
 ```bash
-cd ~/whatsapp-panel
+cd ~/Desktop/Automatizacion
 sudo TAILSCALE=1 bash deploy/install.sh
 ```
 
@@ -69,13 +67,13 @@ Comandos: `tailscale funnel status` (ver dirección), `sudo tailscale funnel --h
 #### Instalar con subdominio
 
 ```bash
-cd ~/whatsapp-panel
+cd ~/Desktop/Automatizacion
 sudo DOMAIN=campanas.cicloit.com bash deploy/install.sh
 ```
 
 Instala Caddy, que saca y renueva solo el certificado HTTPS (Let's Encrypt) y reenvía al panel.
 Al final muestra la **contraseña** del panel (queda guardada en `/opt/whatsapp-panel/.env`) y avisa si el DNS todavía no apunta al server.
-Entrar a `https://campanas.cicloit.com` y, si no se copió la sesión, escanear el QR.
+Entrar a `https://campanas.cicloit.com` y vincular WhatsApp (QR o código).
 
 El panel sigue escuchando sólo en `127.0.0.1:3000`; desde afuera únicamente se llega por Caddy (HTTPS).
 Usar una contraseña larga: el login bloquea 15 minutos una IP tras 5 intentos fallidos.
@@ -88,7 +86,11 @@ copiar el token y correr `sudo CF_TUNNEL_TOKEN='eyJ...' bash deploy/install.sh`.
 
 ### Actualizar a una versión nueva
 
-Copiar los archivos nuevos a `~/whatsapp-panel` y volver a correr `sudo bash deploy/install.sh` (no pisa `data/`, `.env` ni la sesión).
+```bash
+cd ~/Desktop/Automatizacion && git pull && sudo TAILSCALE=1 bash deploy/install.sh
+```
+
+No pisa `data/` (contactos, progreso, sesión de WhatsApp) ni `.env` (contraseña).
 
 ### Comandos útiles
 
@@ -96,7 +98,8 @@ Copiar los archivos nuevos a `~/whatsapp-panel` y volver a correr `sudo bash dep
 journalctl -u whatsapp-panel -f        # logs en vivo
 sudo systemctl restart whatsapp-panel  # reiniciar
 journalctl -u caddy -f                 # HTTPS / certificado
-sudo nano /opt/whatsapp-panel/.env     # cambiar contraseña (después reiniciar)
+tailscale funnel status                # dirección pública
+sudo CHANGE_PASSWORD=1 TAILSCALE=1 bash deploy/install.sh   # cambiar contraseña
 ```
 
 ## Desarrollo local
@@ -111,7 +114,7 @@ Para probar sin tocar WhatsApp ni los datos reales: `WA_DISABLED=1 DATA_DIR=/tmp
 
 ## Datos
 
-Todo queda en `data/` (hacer backup de esta carpeta y de `.wwebjs_auth/`):
+Todo queda en `/opt/whatsapp-panel/data/` (hacer backup de esta carpeta):
 
 | Archivo | Contenido |
 |---|---|
@@ -120,13 +123,12 @@ Todo queda en `data/` (hacer backup de esta carpeta y de `.wwebjs_auth/`):
 | `log.json` | últimas 500 líneas del registro |
 | `uploads/` | imagen de la campaña |
 | `.secret` | clave para firmar las sesiones |
+| `wa-session/` | sesión de WhatsApp vinculada (quien tenga esta carpeta puede usar el WhatsApp) |
 
 ## Seguridad de dependencias
 
-Node 24 LTS y Express 5. `npm audit` todavía marca avisos en paquetes internos que no tienen arreglo publicado:
-`zod` (chromium-bidi de puppeteer), `extract-zip` (descarga de Chrome al instalar), `glob`/`minimatch` (zip de exceljs y RemoteAuth de whatsapp-web.js, que no se usa).
-Ninguno procesa datos que lleguen desde la web. `uuid` y `basic-ftp` se fuerzan a versiones parcheadas con `overrides` en `package.json`.
+Node 24 LTS, Express 5, Baileys 7 (versión fijada). `npm audit`: 0 vulnerabilidades. `uuid` se fuerza a versión parcheada con `overrides`.
 
 ## Script viejo
 
-`npm run cli` sigue ejecutando el `index.js` original por consola. No correr los dos a la vez: comparten la sesión de WhatsApp.
+`index.js`, `config.js`, `parseVcf.js` y `cleanVcf.js` son el envío por consola original (whatsapp-web.js). Quedan sólo como referencia: esa librería ya no se instala.

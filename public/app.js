@@ -131,6 +131,7 @@ function renderWa(w) {
     const map = {
         ready: ['ok', 'WhatsApp conectado'],
         qr: ['warn', 'Escanear QR'],
+        pairing: ['warn', 'Ingresar código'],
         authenticated: ['info', 'Conectando…'],
         starting: ['info', 'Iniciando…'],
         disconnected: ['err', 'Desconectado'],
@@ -140,22 +141,47 @@ function renderWa(w) {
     pill.className = 'pill ' + cls;
     pill.textContent = label;
 
+    // El formulario de código vive fuera de #waBody para no perder lo escrito cuando el QR se refresca
+    $('#pairForm').hidden = w.status === 'ready' || w.status === 'pairing';
+
     const body = $('#waBody');
-    const key = w.status + (w.qr || '') + (w.me?.number || '');
+    const key = w.status + (w.qr || '') + (w.me?.number || '') + (w.pairing?.code || '');
     if (body.dataset.key === key) return;
     body.dataset.key = key;
-    if (w.status === 'ready') {
+    if (w.status === 'pairing' && w.pairing) {
+        const pretty = '+' + w.pairing.number;
+        body.innerHTML = `<div class="muted small">Código para ${esc(pretty)}</div>
+            <div class="pair-code">${esc(w.pairing.code)}</div>
+            <ol class="qr-steps">
+                <li>En el teléfono: WhatsApp → ⋮ → <b>Dispositivos vinculados</b></li>
+                <li><b>Vincular un dispositivo</b> → abajo: <b>Vincular con el número de teléfono</b></li>
+                <li>Escribí el código. Vence en unos minutos.</li>
+            </ol>
+            <button class="btn sm" id="pairCancel">Volver al QR</button>`;
+        $('#pairCancel').onclick = () => action(() => api('/api/wa/restart', { method: 'POST' }));
+    } else if (w.status === 'ready') {
         body.innerHTML = `<div style="font-size:42px">✅</div>
             <div><b>${esc(w.me?.name || 'Conectado')}</b><div class="muted">+${esc(w.me?.number || '')}</div></div>`;
     } else if (w.status === 'qr' && w.qr) {
         body.innerHTML = `<img src="${w.qr}" alt="Código QR">
-            <ol class="qr-steps"><li>Abrí WhatsApp en el teléfono</li><li>Menú ⋮ → <b>Dispositivos vinculados</b></li><li><b>Vincular dispositivo</b> y escaneá este código</li></ol>`;
+            <ol class="qr-steps"><li>Abrí WhatsApp en el teléfono</li><li>Menú ⋮ → <b>Dispositivos vinculados</b></li><li><b>Vincular dispositivo</b> y escaneá este código</li></ol>
+            <div class="hint">El QR se renueva solo cada ~20 segundos.</div>`;
     } else if (w.status === 'disconnected') {
-        body.innerHTML = `<div style="font-size:42px">⚠️</div><div class="muted">${esc(w.error || 'Desconectado')}<br>Reintentando…</div>`;
+        body.innerHTML = `<div style="font-size:42px">⚠️</div><div class="muted">${esc(w.error || 'Desconectado')}<br>Reintentando solo…</div>`;
     } else {
-        body.innerHTML = `<div style="font-size:42px">⏳</div><div class="muted">${w.status === 'authenticated' ? 'Cargando chats…' : 'Iniciando WhatsApp… (puede tardar un minuto)'}</div>`;
+        body.innerHTML = `<div style="font-size:42px">⏳</div><div class="muted">Conectando con WhatsApp…</div>`;
     }
 }
+
+$('#pairForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const btn = $('#pairBtn');
+    btn.disabled = true;
+    btn.textContent = 'Generando…';
+    action(() => api('/api/wa/pair', { method: 'POST', body: { number: $('#pairNumber').value } }),
+        r => `Código generado para +${r.number}`)
+        .finally(() => { btn.disabled = false; btn.textContent = 'Obtener código'; });
+});
 
 function tickCountdown() {
     const el = $('#countdown');

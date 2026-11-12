@@ -61,6 +61,14 @@
             <div class="card" id="waCard">
                 <h2>Conexión WhatsApp</h2>
                 <div id="waBody" class="qr-box"><span class="muted">Cargando…</span></div>
+                <form id="pairForm" class="pair-form" hidden>
+                    <div class="pair-sep"><span>o vinculá con código</span></div>
+                    <div class="row">
+                        <input type="tel" id="pairNumber" placeholder="Número del WhatsApp, ej: 3584314857" style="flex:1;min-width:160px" required>
+                        <button class="btn" id="pairBtn">Obtener código</button>
+                    </div>
+                    <p class="hint">En el teléfono: Dispositivos vinculados → Vincular un dispositivo → <b>Vincular con el número de teléfono</b>, y escribí el código.</p>
+                </form>
             </div>
         </div>
 
