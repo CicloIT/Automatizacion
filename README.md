@@ -39,6 +39,16 @@ cd ~/whatsapp-panel
 sudo TAILSCALE=1 bash deploy/install.sh
 ```
 
+Primero pregunta la **contraseña del panel** (Enter vacío = genera una). Para cambiarla más adelante:
+`sudo CHANGE_PASSWORD=1 TAILSCALE=1 bash deploy/install.sh`.
+
+**Antes de instalar**, en https://login.tailscale.com/admin/acls agregar el permiso de Funnel a la política (sin esto la dirección
+sólo anda desde el propio server):
+
+```json
+"nodeAttrs": [ { "target": ["autogroup:member"], "attr": ["funnel"] } ],
+```
+
 Durante la instalación aparecen 1 o 2 links:
 1. **Login de Tailscale**: abrirlo en cualquier navegador e iniciar sesión (Google, Microsoft o GitHub). Cuenta gratis.
 2. **Habilitar Funnel** (sólo la primera vez): abrirlo y aceptar.

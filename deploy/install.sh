@@ -10,6 +10,9 @@
 #        (sin abrir puertos ni dominio: https://<TS_HOSTNAME>.<tu-red>.ts.net)
 #        TS_HOSTNAME (default campanas), TS_AUTHKEY opcional para no loguearse a mano
 #
+# Contraseña del panel: se pregunta en la primera instalación (Enter = generar una).
+# Para cambiarla después: sudo CHANGE_PASSWORD=1 bash deploy/install.sh
+#
 # Con DOMAIN: el registro DNS (A) del subdominio tiene que apuntar a la IP pública
 # y el router tiene que reenviar los puertos 80 y 443 a este servidor.
 #
@@ -83,16 +86,50 @@ if [ "$SRC_DIR" != "$APP_DIR" ]; then
 fi
 mkdir -p "$APP_DIR/data"
 
-if [ ! -f "$APP_DIR/.env" ]; then
-    PASS="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)"
-    cat > "$APP_DIR/.env" <<EOF
-ADMIN_PASSWORD=$PASS
-PORT=$PORT
-HOST=127.0.0.1
-TZ_CAMPAIGN=America/Argentina/Cordoba
-EOF
-    GENERATED_PASS="$PASS"
+# Contraseña del panel: se pregunta en la primera instalación (o con CHANGE_PASSWORD=1).
+# Enter vacío = se genera una aleatoria.
+ask_password() {
+    local p1 p2
+    while true; do
+        read -r -s -p "    Contraseña para entrar al panel (mín. 8, Enter = generar una): " p1 </dev/tty; echo >/dev/tty
+        if [ -z "$p1" ]; then
+            NEW_PASS="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)"
+            GENERATED_PASS="$NEW_PASS"
+            return
+        fi
+        if [ "${#p1}" -lt 8 ]; then echo "    Muy corta, mínimo 8 caracteres." >/dev/tty; continue; fi
+        if [[ "$p1" =~ [[:space:]] ]]; then echo "    Sin espacios, por favor." >/dev/tty; continue; fi
+        read -r -s -p "    Repetila: " p2 </dev/tty; echo >/dev/tty
+        [ "$p1" = "$p2" ] && { NEW_PASS="$p1"; return; }
+        echo "    No coinciden, probá de nuevo." >/dev/tty
+    done
+}
+
+NEW_PASS="${ADMIN_PASSWORD:-}"
+if [ -z "$NEW_PASS" ] && { [ ! -f "$APP_DIR/.env" ] || [ "${CHANGE_PASSWORD:-}" = 1 ]; }; then
+    step "Contraseña del panel"
+    if [ -r /dev/tty ]; then
+        ask_password
+    else
+        NEW_PASS="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)"
+        GENERATED_PASS="$NEW_PASS"
+    fi
 fi
+
+if [ ! -f "$APP_DIR/.env" ]; then
+    {
+        printf 'ADMIN_PASSWORD=%s\n' "$NEW_PASS"
+        printf 'PORT=%s\nHOST=127.0.0.1\nTZ_CAMPAIGN=America/Argentina/Cordoba\n' "$PORT"
+    } > "$APP_DIR/.env"
+elif [ -n "$NEW_PASS" ]; then
+    NEW_PASS="$NEW_PASS" awk 'BEGIN{done=0}
+        /^ADMIN_PASSWORD=/ { print "ADMIN_PASSWORD=" ENVIRON["NEW_PASS"]; done=1; next }
+        { print }
+        END { if (!done) print "ADMIN_PASSWORD=" ENVIRON["NEW_PASS"] }' "$APP_DIR/.env" > "$APP_DIR/.env.tmp"
+    mv "$APP_DIR/.env.tmp" "$APP_DIR/.env"
+    echo "    Contraseña actualizada"
+fi
+unset NEW_PASS
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 chmod 600 "$APP_DIR/.env"
 chmod 700 "$APP_DIR/data"
@@ -221,6 +258,33 @@ if [ -n "${TAILSCALE:-}" ]; then
     # Detrás de Funnel la conexión es HTTPS: cookie de sesión con Secure
     grep -q '^COOKIE_SECURE=' "$APP_DIR/.env" || echo 'COOKIE_SECURE=1' >> "$APP_DIR/.env"
     systemctl restart "$SERVICE"
+
+    # Verificar desde internet: desde esta máquina la dirección siempre anda (va por adentro de Tailscale),
+    # así que se prueba contra el servidor público de Funnel resolviendo con DNS público.
+    TS_HOST="${TS_URL#https://}"
+    echo "    Verificando acceso público (hasta 2 minutos)..."
+    TS_PUBLIC_OK=0
+    for _ in $(seq 1 12); do
+        PUB_IP="$(curl -fsS --max-time 5 -H 'accept: application/dns-json' \
+            "https://cloudflare-dns.com/dns-query?name=$TS_HOST&type=A" 2>/dev/null \
+            | "$NODE_BIN" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const a=(JSON.parse(s).Answer||[]).find(x=>x.type===1);process.stdout.write(a?a.data:"")}catch{}})' || true)"
+        if [ -n "$PUB_IP" ] && curl -fsS -o /dev/null --max-time 10 \
+            --resolve "$TS_HOST:443:$PUB_IP" "https://$TS_HOST/login.html"; then
+            TS_PUBLIC_OK=1; break
+        fi
+        sleep 10
+    done
+    if [ "$TS_PUBLIC_OK" = 1 ]; then
+        echo "    Acceso público OK"
+    else
+        echo
+        echo "    ATENCIÓN: la dirección no responde desde internet."
+        echo "    Falta el permiso de Funnel en la política de Tailscale:"
+        echo "      https://login.tailscale.com/admin/acls  → agregar dentro del JSON:"
+        echo '        "nodeAttrs": [ { "target": ["autogroup:member"], "attr": ["funnel"] } ],'
+        echo "    Guardar, después: sudo tailscale funnel --bg $PORT"
+        echo "    y probar desde el celular con datos móviles en unos minutos."
+    fi
 fi
 
 # ---------------------------------------------------------------- Cloudflare Tunnel
@@ -251,7 +315,11 @@ echo "================================ LISTO ================================"
 echo " Panel local:  http://127.0.0.1:$PORT   (servicio $SERVICE)"
 if [ -n "${GENERATED_PASS:-}" ]; then
     echo " Contraseña:   $GENERATED_PASS"
-    echo "               (guardada en $APP_DIR/.env — anotala)"
+    echo "               (generada automáticamente, guardada en $APP_DIR/.env — anotala)"
+fi
+echo " Cambiar contraseña: sudo CHANGE_PASSWORD=1 bash deploy/install.sh (con TAILSCALE=1 si lo usás)"
+if [ -n "${TS_URL:-}" ]; then
+    echo " Importante:   en https://login.tailscale.com/admin/machines → campanas → ⋮ → Disable key expiry"
 fi
 echo " Logs:         journalctl -u $SERVICE -f"
 echo " Reiniciar:    sudo systemctl restart $SERVICE"
