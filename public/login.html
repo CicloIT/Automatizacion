@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ingresar · Campañas WhatsApp</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="login-wrap">
+    <form class="card login-card stack" id="f">
+        <div class="brand"><div class="brand-mark">✉</div> Campañas WhatsApp</div>
+        <label class="field">
+            <span>Contraseña</span>
+            <input type="password" name="password" autocomplete="current-password" autofocus required>
+        </label>
+        <div class="error-text" id="err"></div>
+        <button class="btn primary big" style="width:100%">Ingresar</button>
+    </form>
+</div>
+<script>
+document.getElementById('f').addEventListener('submit', async e => {
+    e.preventDefault();
+    const err = document.getElementById('err');
+    err.textContent = '';
+    const r = await fetch('/api/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: e.target.password.value }),
+    });
+    if (r.ok) location.href = '/';
+    else err.textContent = (await r.json().catch(() => ({}))).error || 'Error';
+});
+</script>
+</body>
+</html>

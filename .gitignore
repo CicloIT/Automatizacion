@@ -1,0 +1,16 @@
+node_modules/
+.env
+data/
+.wwebjs_auth/
+.wwebjs_cache/
+*.bak
+
+# Datos personales de clientes: nunca al repo
+contacts.vcf
+*.vcf
+progress.json
+
+# Herramientas locales
+graphify-out/
+.claude/
+.kombai/

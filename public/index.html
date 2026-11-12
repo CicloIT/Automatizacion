@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Campañas WhatsApp</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="topbar">
+    <div class="topbar-inner">
+        <div class="brand"><div class="brand-mark">✉</div> <span id="brandName">Campañas WhatsApp</span></div>
+        <nav class="tabs">
+            <button class="tab active" data-view="panel">Panel</button>
+            <button class="tab" data-view="mensaje">Mensaje</button>
+            <button class="tab" data-view="contactos">Contactos</button>
+            <button class="tab" data-view="ajustes">Ajustes</button>
+        </nav>
+        <span class="pill" id="waPill">WhatsApp…</span>
+        <button class="btn ghost sm" id="logoutBtn" title="Cerrar sesión del panel">Salir</button>
+    </div>
+</header>
+
+<main>
+    <!-- ================= PANEL ================= -->
+    <section class="view active" id="view-panel">
+        <div class="grid grid-main">
+            <div class="card">
+                <h2><span id="campName">Campaña</span><span class="spacer"></span><span class="pill" id="runPill">Detenida</span></h2>
+                <div class="stats">
+                    <div class="stat"><b id="sTotal">0</b><span>Contactos</span></div>
+                    <div class="stat sent"><b id="sSent">0</b><span>Enviados</span></div>
+                    <div class="stat"><b id="sPending">0</b><span>Pendientes</span></div>
+                    <div class="stat"><b id="sNoWa">0</b><span>Sin WhatsApp</span></div>
+                    <div class="stat failed"><b id="sFailed">0</b><span>Fallidos</span></div>
+                </div>
+                <div class="progress" title="Progreso">
+                    <div class="p-sent" id="pSent"></div><div class="p-nowa" id="pNoWa"></div><div class="p-failed" id="pFailed"></div>
+                </div>
+                <div class="row small muted" style="margin-top:6px">
+                    <span id="pctText">0% procesado</span><span class="spacer" style="flex:1"></span>
+                    <span>Hoy: <b id="todayText">0 / 0</b></span>
+                </div>
+
+                <div class="phase">
+                    <div class="icon" id="phaseIcon">⏸</div>
+                    <div><b id="phaseTitle">Detenida</b><span class="small muted" id="phaseText"></span></div>
+                    <div class="countdown" id="countdown"></div>
+                </div>
+
+                <div class="row">
+                    <button class="btn primary big" id="startBtn">▶ Iniciar campaña</button>
+                    <button class="btn big" id="pauseBtn">⏸ Pausar</button>
+                    <span style="flex:1"></span>
+                    <button class="btn" id="retryBtn">↻ Reintentar fallidos</button>
+                    <a class="btn" href="/api/contacts/export">⬇ Exportar resultados</a>
+                </div>
+                <p class="hint" style="margin-top:12px">El progreso se guarda en el servidor después de cada envío. Si se reinicia o se corta, la campaña sigue desde donde quedó. Podés cerrar esta página: el envío continúa.</p>
+            </div>
+
+            <div class="card" id="waCard">
+                <h2>Conexión WhatsApp</h2>
+                <div id="waBody" class="qr-box"><span class="muted">Cargando…</span></div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-top:16px">
+            <h2>Registro en vivo<span class="spacer"></span><button class="btn sm ghost" id="clearLogView">Limpiar vista</button></h2>
+            <div class="log" id="log"></div>
+        </div>
+    </section>
+
+    <!-- ================= MENSAJE ================= -->
+    <section class="view" id="view-mensaje">
+        <div class="grid grid-2">
+            <div class="card stack">
+                <h2>Contenido de la campaña<span class="spacer"></span><span class="save-state" id="saveState"></span></h2>
+                <label class="field">
+                    <span>Nombre de la campaña (interno)</span>
+                    <input type="text" id="nameInput" maxlength="120" placeholder="Ej: Starlink noviembre">
+                </label>
+                <div>
+                    <label class="field"><span>Imagen (opcional)</span></label>
+                    <div id="imgArea"></div>
+                    <input type="file" id="imgFile" accept="image/jpeg,image/png,image/webp" hidden>
+                </div>
+                <div>
+                    <label class="field"><span>Texto del mensaje</span></label>
+                    <div class="toolbar">
+                        <button class="btn sm" data-wrap="*" title="Negrita">𝗕 Negrita</button>
+                        <button class="btn sm" data-wrap="_" title="Cursiva"><i>I</i> Cursiva</button>
+                        <button class="btn sm" data-wrap="~" title="Tachado"><s>S</s></button>
+                        <button class="btn sm" data-insert="{nombre}">+ {nombre}</button>
+                        <button class="btn sm" data-insert="{Hola|Buenas|Qué tal}">+ Variación</button>
+                    </div>
+                    <textarea id="msgInput" placeholder="Escribí el mensaje…"></textarea>
+                    <div class="hint">
+                        <b>{nombre}</b> se reemplaza por el primer nombre del contacto (si no tiene, se omite).
+                        <b>{Hola|Buenas|Qué tal}</b> elige una opción al azar en cada envío: ayuda a que los mensajes no sean idénticos (anti-bloqueo).
+                        <span id="charCount"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stack">
+                <div class="card">
+                    <h2>Vista previa<span class="spacer"></span>
+                        <input type="text" id="previewName" value="Juan Pérez" style="width:150px;padding:4px 8px;font-size:13px" title="Nombre de ejemplo">
+                        <button class="btn sm" id="reroll" title="Otra variación">↻</button>
+                    </h2>
+                    <div class="phone"><div class="bubble" id="bubble"></div></div>
+                </div>
+                <div class="card">
+                    <h2>Enviar prueba</h2>
+                    <div class="row">
+                        <input type="tel" id="testNumber" placeholder="Ej: 3584314857" style="flex:1;min-width:160px">
+                        <button class="btn primary" id="testBtn">Enviar prueba</button>
+                    </div>
+                    <p class="hint">Se envía el mensaje actual (con imagen) a ese número, usando "Prueba" como nombre. No cuenta en la campaña.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================= CONTACTOS ================= -->
+    <section class="view" id="view-contactos">
+        <div class="grid grid-2" style="margin-bottom:16px">
+            <div class="card">
+                <h2>Cargar contactos</h2>
+                <div class="dropzone" id="sheetDrop">
+                    <div style="font-size:28px">📄</div>
+                    <b>Arrastrá un Excel acá o hacé clic</b>
+                    <div class="small">.xlsx, .csv o .vcf — se detectan solas las columnas de teléfono y nombre</div>
+                </div>
+                <input type="file" id="sheetFile" accept=".xlsx,.xlsm,.csv,.txt,.vcf" hidden>
+                <p class="hint" id="sourceInfo"></p>
+            </div>
+            <div class="card">
+                <h2>Agregar a mano</h2>
+                <div class="stack">
+                    <div class="row">
+                        <input type="text" id="addName" placeholder="Nombre (opcional)" style="flex:1;min-width:140px">
+                        <input type="tel" id="addNumber" placeholder="Teléfono" style="flex:1;min-width:140px">
+                        <button class="btn" id="addBtn">Agregar</button>
+                    </div>
+                    <div class="row">
+                        <button class="btn" id="resetBtn">Reiniciar progreso</button>
+                        <button class="btn danger" id="clearBtn">Borrar lista</button>
+                    </div>
+                    <p class="hint">"Reiniciar progreso" vuelve todos a pendientes (para mandar otra campaña a la misma lista).</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="row" style="margin-bottom:12px">
+                <div class="filters" id="filters" style="margin:0;flex:1">
+                    <button class="chip active" data-status="">Todos</button>
+                    <button class="chip" data-status="pending">Pendientes</button>
+                    <button class="chip" data-status="sent">Enviados</button>
+                    <button class="chip" data-status="no_wa">Sin WhatsApp</button>
+                    <button class="chip" data-status="failed">Fallidos</button>
+                </div>
+                <input type="search" id="search" placeholder="Buscar nombre o número" style="max-width:240px">
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead><tr><th>Nombre</th><th>Número</th><th>Estado</th><th>Fecha</th><th>Detalle</th><th></th></tr></thead>
+                    <tbody id="tbody"></tbody>
+                </table>
+            </div>
+            <div class="pager">
+                <span class="small muted" id="pageInfo"></span>
+                <div class="row">
+                    <button class="btn sm" id="prevPage">← Anterior</button>
+                    <button class="btn sm" id="nextPage">Siguiente →</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ================= AJUSTES ================= -->
+    <section class="view" id="view-ajustes">
+        <form class="card stack" id="settingsForm">
+            <h2>Ritmo de envío (anti-bloqueo)</h2>
+            <div class="fields">
+                <label class="field"><span>Espera mínima entre mensajes (seg)</span><input type="number" name="delayMinSec" min="5"></label>
+                <label class="field"><span>Espera máxima entre mensajes (seg)</span><input type="number" name="delayMaxSec" min="5"></label>
+                <label class="field"><span>Pausa larga cada (mensajes)</span><input type="number" name="batchSize" min="1"></label>
+                <label class="field"><span>Duración de pausa larga (min)</span><input type="number" name="batchPauseMin" min="0"></label>
+                <label class="field"><span>Máximo de envíos por día</span><input type="number" name="dailyLimit" min="1"></label>
+            </div>
+            <p class="hint" id="rateHint"></p>
+
+            <h2 style="margin-top:22px">Horario de envío</h2>
+            <div class="fields">
+                <label class="field"><span>Desde (hora)</span><input type="number" name="hourStart" min="0" max="23"></label>
+                <label class="field"><span>Hasta (hora)</span><input type="number" name="hourEnd" min="0" max="24"></label>
+            </div>
+            <div class="days" id="days"></div>
+            <p class="hint">Fuera de este horario la campaña espera sola y retoma cuando corresponde. Zona horaria: <span id="tzText"></span>.</p>
+
+            <h2 style="margin-top:22px">Contactos</h2>
+            <div class="fields">
+                <label class="field"><span>Código de país por defecto</span><input type="text" name="countryCode" maxlength="4"></label>
+            </div>
+            <label class="check"><input type="checkbox" name="skipHistory">
+                <span>No volver a enviar a números que ya recibieron campañas anteriores<br>
+                <span class="hint">Historial actual: <b id="historySize">0</b> números. <a href="#" id="clearHistory">Borrar historial</a></span></span>
+            </label>
+
+            <div class="row" style="margin-top:18px">
+                <button class="btn primary">Guardar ajustes</button>
+                <span class="save-state" id="settingsState"></span>
+            </div>
+        </form>
+
+        <div class="card" style="margin-top:16px">
+            <h2>WhatsApp</h2>
+            <div class="row">
+                <button class="btn" id="waRestart">Reiniciar conexión</button>
+                <button class="btn danger" id="waLogout">Desvincular teléfono</button>
+            </div>
+            <p class="hint">Desvincular cierra la sesión y muestra un QR nuevo para conectar otro número.</p>
+        </div>
+    </section>
+</main>
+
+<!-- Modal de importación -->
+<dialog id="importDialog">
+    <div class="modal-body stack">
+        <div>
+            <h3>Importar <span id="impFile"></span></h3>
+            <div class="small muted"><span id="impRows"></span> filas encontradas. Revisá que las columnas sean correctas.</div>
+        </div>
+        <div class="fields">
+            <label class="field"><span>Columna del teléfono</span><select id="impPhone"></select></label>
+            <label class="field"><span>Columna del nombre</span><select id="impName"></select></label>
+        </div>
+        <div class="table-wrap" style="max-height:220px;overflow:auto"><table id="impSample"></table></div>
+        <div class="result-line" id="impResult"></div>
+        <div class="row">
+            <label class="check"><input type="radio" name="impMode" value="replace" checked> <span>Reemplazar la lista actual</span></label>
+            <label class="check"><input type="radio" name="impMode" value="append"> <span>Agregar a la lista actual</span></label>
+        </div>
+    </div>
+    <div class="modal-foot">
+        <button class="btn" id="impCancel">Cancelar</button>
+        <button class="btn primary" id="impConfirm">Importar contactos</button>
+    </div>
+</dialog>
+
+<div id="toasts"></div>
+<script src="/app.js"></script>
+</body>
+</html>
